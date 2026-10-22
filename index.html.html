@@ -19,13 +19,34 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, Component } = React;
 
-    // Core Guideline Data based on the provided PDF
+    // Error Boundary to prevent full blank screens
+    class ErrorBoundary extends Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+      }
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div className="flex h-screen items-center justify-center bg-slate-950 text-red-500 p-10 font-mono flex-col text-center">
+              <h1 className="text-4xl font-bold mb-4">Simulator Crashed!</h1>
+              <p className="bg-slate-900 p-4 rounded border border-red-900">{this.state.error?.toString()}</p>
+              <p className="text-slate-400 mt-4 text-sm">Please refresh the page to start over.</p>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
     const GUIDELINE_STEPS = [
       {
-        stepNum: 0,
-        title: "Step 0: Preparation",
+        stepNum: 0, title: "Step 0: Preparation",
         content: "In VMware, right-click the virtual machine -> Snapshot -> Take Snapshot. Name it 'Before Demo'. (Use the VM menu above)",
         explanation: {
           en: "Taking a snapshot ensures you can easily revert to a working state if you make a mistake during the rescue process.",
@@ -34,8 +55,7 @@
         }
       },
       {
-        stepNum: 1,
-        title: "Step 1: Enter GRUB Menu",
+        stepNum: 1, title: "Step 1: Enter GRUB Menu",
         content: "Reboot the VM. Press the Arrow keys or Esc immediately after boot to stop the 5-second countdown. Select the default kernel and press 'e' to edit.",
         explanation: {
           en: "We interrupt the boot process to access the GRUB menu, allowing us to modify how the Linux kernel starts.",
@@ -44,8 +64,7 @@
         }
       },
       {
-        stepNum: 2,
-        title: "Step 2: Modify Kernel Parameters",
+        stepNum: 2, title: "Step 2: Modify Kernel Parameters",
         content: "Find the line starting with linux. Go to the end of this line, add a space, and type 'rd.break'. Press Ctrl + x or F10 to boot.",
         explanation: {
           en: "Adding 'rd.break' tells the system to stop booting before mounting the actual root filesystem, dropping us into an emergency RAM-based environment.",
@@ -54,8 +73,7 @@
         }
       },
       {
-        stepNum: 3,
-        title: "Step 3: Enter Emergency Shell",
+        stepNum: 3, title: "Step 3: Enter Emergency Shell",
         content: "The system boots into an emergency shell with the prompt switch_root:/#. The real root filesystem is mounted read-only at /sysroot.",
         explanation: {
           en: "This is the initial RAM disk (initramfs) shell. The real system files are currently isolated in /sysroot and are read-only to prevent damage.",
@@ -64,8 +82,7 @@
         }
       },
       {
-        stepNum: 4,
-        title: "Step 4: Remount and Chroot",
+        stepNum: 4, title: "Step 4: Remount and Chroot",
         content: "Make the real root filesystem writable:\n`mount -o remount,rw /sysroot`\n\nSwitch to the real system environment:\n`chroot /sysroot`",
         explanation: {
           en: "'remount,rw' makes the files writable so we can change the password. 'chroot' changes our environment so our commands affect the real system.",
@@ -74,8 +91,7 @@
         }
       },
       {
-        stepNum: 5,
-        title: "Step 5: Reset Password",
+        stepNum: 5, title: "Step 5: Reset Password",
         content: "Type the command and follow the prompts. Note: Password input will be invisible (blind typing).\n`passwd root`",
         explanation: {
           en: "We use the 'passwd' command to set a new password for the 'root' superuser. Text is hidden entirely for security purposes.",
@@ -84,8 +100,7 @@
         }
       },
       {
-        stepNum: 6,
-        title: "Step 6: Handle SELinux",
+        stepNum: 6, title: "Step 6: Handle SELinux",
         content: "RHEL 8 has SELinux enabled by default. You MUST create the relabel file:\n`touch /.autorelabel`",
         explanation: {
           en: "RHEL uses SELinux. The '/.autorelabel' file forces the system to fix security contexts on the next boot, allowing the new password to actually work.",
@@ -94,8 +109,7 @@
         }
       },
       {
-        stepNum: 7,
-        title: "Step 7: Exit and Reboot",
+        stepNum: 7, title: "Step 7: Exit and Reboot",
         content: "Exit chroot, then exit the rescue shell to reboot.\n`exit`\n`exit`\n`# (If necessary)`\n`reboot -f`",
         explanation: {
           en: "Exiting twice leaves the 'chroot' environment and then closes the emergency shell, prompting the system to reboot and apply the SELinux changes.",
@@ -104,8 +118,7 @@
         }
       },
       {
-        stepNum: 8,
-        title: "Step 8: Verification",
+        stepNum: 8, title: "Step 8: Verification",
         content: "Log in to the system. Open terminal, type `su -`, and enter your NEW root password to verify.",
         explanation: {
           en: "We log in normally and use 'su -' to test if the new root password works and switch to the root environment, confirming success.",
@@ -206,12 +219,12 @@
           case SIM_STATES.SHELL_INFO:
             if (trimmedCmd === "") setSimState(SIM_STATES.REMOUNT);
             else if (/^mount\s+-o\s+remount/i.test(trimmedCmd)) {
-              if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot$/i.test(trimmedCmd) || /^mount\s+-o\s+remount,rw\s+\/sysroot$/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
+              if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot$/i.test(trimmedCmd) \vert{}\vert{} /^mount\s+-o\s+remount,rw\s+\/sysroot$/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
               else showError(cmd, "mount -o remount,rw /sysroot", "You must remount the real root filesystem (/sysroot) with read-write permissions so you can modify it.");
             } else showError(cmd, "<Press ENTER>", "Take a moment to read the explanation for Step 3 on the left. Then, just press ENTER on an empty line to continue to Step 4.");
             break;
           case SIM_STATES.REMOUNT:
-            if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot$/i.test(trimmedCmd) || /^mount\s+-o\s+remount,rw\s+\/sysroot$/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
+            if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot$/i.test(trimmedCmd) \vert{}\vert{} /^mount\s+-o\s+remount,rw\s+\/sysroot$/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
             else showError(cmd, "mount -o remount,rw /sysroot", "You must remount the real root filesystem (/sysroot) with read-write permissions so you can modify it.");
             break;
           case SIM_STATES.CHROOT:
@@ -456,7 +469,10 @@
 
       return (
         <div className="w-full h-full bg-black text-gray-300 font-mono text-sm p-4 overflow-hidden">
-          {logs.map((log, index) => <div key={index}>{log}</div>)}
+          {logs.map((log, index) => {
+            const safeLog = typeof log === 'string' ? log : String(log || "");
+            return <div key={index}>{safeLog}</div>;
+          })}
         </div>
       );
     }
@@ -475,7 +491,11 @@
 
       return (
         <div className="w-full h-full bg-black text-gray-300 font-mono text-sm p-4 overflow-hidden">
-          {logs.map((log, index) => <div key={index} className={log.includes("SELinux") ? "text-yellow-400 font-bold" : ""}>{log}</div>)}
+          {logs.map((log, index) => {
+            const safeLog = typeof log === 'string' ? log : String(log || "");
+            const isYellow = safeLog.includes("SELinux");
+            return <div key={index} className={isYellow ? "text-yellow-400 font-bold" : ""}>{safeLog}</div>;
+          })}
         </div>
       );
     }
@@ -495,7 +515,10 @@
       return (
         <div className="w-full h-full bg-black text-green-400 font-mono text-base p-4 overflow-y-auto flex flex-col">
           <div className="flex-grow">
-            {history.map((line, i) => <div key={i} className="whitespace-pre-wrap">{line}</div>)}
+            {history.map((line, i) => {
+              const safeLine = typeof line === 'string' ? line : String(line || "");
+              return <div key={i} className="whitespace-pre-wrap">{safeLine}</div>;
+            })}
             <div className="flex mt-1">
               <span className="whitespace-pre-wrap mr-2">{displayPrompt}</span>
               <input type={isPasswordInput ? "password" : "text"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} autoFocus className="flex-grow bg-transparent text-green-400 outline-none border-none focus:ring-0 p-0 font-mono" autoComplete="off" spellCheck="false" />
@@ -545,7 +568,10 @@
         <div className="w-full h-full bg-black text-gray-300 font-mono text-base p-4 overflow-y-auto flex flex-col">
           <div className="text-yellow-400 mb-4 font-bold border-b border-gray-700 pb-2"># System booted successfully. Open Terminal to test root login.</div>
           <div className="flex-grow">
-            {history.map((line, i) => <div key={i} className="whitespace-pre-wrap">{line}</div>)}
+            {history.map((line, i) => {
+              const safeLine = typeof line === 'string' ? line : String(line || "");
+              return <div key={i} className="whitespace-pre-wrap">{safeLine}</div>;
+            })}
             <div className="flex mt-1">
               <span className="whitespace-pre-wrap mr-2">{simState === 13 ? "[user@localhost ~]$ " : ""}</span>
               <input type={simState === 14 ? "password" : "text"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} autoFocus className="flex-grow bg-transparent text-gray-300 outline-none border-none p-0 font-mono" autoComplete="off" spellCheck="false" />
@@ -572,9 +598,9 @@
       );
     }
 
-    // Render the App
+    // Render the App wrapped in ErrorBoundary
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    root.render(<ErrorBoundary><App /></ErrorBoundary>);
   </script>
 </body>
 </html>
