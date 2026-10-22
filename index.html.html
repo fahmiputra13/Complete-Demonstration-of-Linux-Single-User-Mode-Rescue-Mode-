@@ -219,12 +219,12 @@
           case SIM_STATES.SHELL_INFO:
             if (trimmedCmd === "") setSimState(SIM_STATES.REMOUNT);
             else if (/^mount\s+-o\s+remount/i.test(trimmedCmd)) {
-              if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot$/i.test(trimmedCmd) \vert{}\vert{} /^mount\s+-o\s+remount,rw\s+\/sysroot$/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
+              if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot/i.test(trimmedCmd) || /^mount\s+-o\s+remount,rw\s+\/sysroot/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
               else showError(cmd, "mount -o remount,rw /sysroot", "You must remount the real root filesystem (/sysroot) with read-write permissions so you can modify it.");
             } else showError(cmd, "<Press ENTER>", "Take a moment to read the explanation for Step 3 on the left. Then, just press ENTER on an empty line to continue to Step 4.");
             break;
           case SIM_STATES.REMOUNT:
-            if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot$/i.test(trimmedCmd) \vert{}\vert{} /^mount\s+-o\s+remount,rw\s+\/sysroot$/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
+            if (/^mount\s+-o\s+remount,\s*rw\s*\/\s*sysroot/i.test(trimmedCmd) || /^mount\s+-o\s+remount,rw\s+\/sysroot/i.test(trimmedCmd)) setSimState(SIM_STATES.CHROOT);
             else showError(cmd, "mount -o remount,rw /sysroot", "You must remount the real root filesystem (/sysroot) with read-write permissions so you can modify it.");
             break;
           case SIM_STATES.CHROOT:
